@@ -27,6 +27,17 @@ Liven 是一间打烊很晚的咖啡店店主。她会以透明小窗的形式�
 
 > 所有由程序生成的作品都会在标题下与文末标注「由虚拟Liven完成」
 
+## 界面
+
+<p align="center">
+  <img src="assets/screenshots/pet.webp" width="47%" alt="桌面上的 Liven">
+  <img src="assets/screenshots/chat.webp" width="47%" alt="和 Liven 说说话">
+</p>
+<p align="center">
+  <img src="assets/screenshots/write.webp" width="47%" alt="让 Liven 写一篇">
+  <img src="assets/screenshots/settings.webp" width="47%" alt="设定">
+</p>
+
 ## 功能
 
 - **桌宠**：透明、无边框、可拖动、可置顶、可缩放；会眨眼、招手、打哈欠、惊讶，也会按时间和情境说很短的话。
