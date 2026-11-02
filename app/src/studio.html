@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Eternity coffee · 写作间</title>
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/studio.css" />
+  <link rel="stylesheet" href="css/atmosphere.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="side">
+      <div class="brand">
+        <img src="../../assets/ui/icon.png" alt="" />
+        <div>
+          <h1>Eternity coffee</h1>
+          <p>Liven · 写作间</p>
+        </div>
+      </div>
+
+      <nav id="nav">
+        <button data-section="chat" class="active"><span class="ico">☕</span>对话</button>
+        <button data-section="write"><span class="ico">✎</span>创作</button>
+        <button data-section="shelf"><span class="ico">❧</span>书架</button>
+        <button data-section="works"><span class="ico">▤</span>作品</button>
+        <button data-section="settings"><span class="ico">⚙</span>设定</button>
+      </nav>
+
+      <div class="side-note">热可可 · 手冲 · 旧书<br />深夜营业 / 打烊之后</div>
+
+      <div class="side-foot">
+        <div class="side-clock" id="sideClock" title="本地时间">
+          <div class="side-clock-top"><span id="clockPhase">正午</span><span class="side-clock-tag">LOCAL</span></div>
+          <div class="side-clock-time" id="clockTime">12:27</div>
+          <div class="side-clock-date" id="clockDate">11月2日 · 周一</div>
+        </div>
+        <div id="sideStatus" class="status offline"><i></i><span>未接通模型</span></div>
+        <button id="btnHide" class="ghost small">收起写作间</button>
+      </div>
+    </aside>
+
+    <main id="main">
+      <div id="cafe" aria-hidden="true">
+        <div class="cafe-window">
+          <div class="cafe-sky"></div>
+          <div class="cafe-stars"></div>
+          <div class="cafe-sun"></div>
+          <div class="cafe-moon"></div>
+          <div class="cafe-skyline"></div>
+          <div class="cafe-mullion"></div>
+        </div>
+        <div class="cafe-sill"></div>
+        <div class="cafe-lamp lamp-a"><i class="cord"></i><i class="shade"></i><i class="bulb"></i><i class="cone"></i></div>
+        <div class="cafe-liven"><img src="../../assets/character/liven-front.png" alt="" draggable="false" /></div>
+        <div class="cafe-wainscot"></div>
+        <div class="cafe-counter"></div>
+        <div class="cafe-cup"></div>
+        <div class="cafe-steam"></div>
+        <div class="cafe-dust"></div>
+        <div class="cafe-vignette"></div>
+      </div>
+
+      <!-- ============================ 对话 ============================ -->
+      <section id="view-chat" class="view active">
+        <header class="view-head">
+          <div>
+            <p class="eyebrow">Eternity coffee · 打烊之后</p>
+            <h2>和 Liven 说说话</h2>
+          </div>
+          <div class="head-actions">
+            <button id="btnResetChat" class="ghost small">清空对话</button>
+          </div>
+        </header>
+
+        <div id="offlineBanner" class="banner hidden">
+          <strong>还没有接通语言模型。</strong>
+          <span>现在的回复来自本地台词库，写不了新稿。到「设定」填一个 API Key，或继续用书架 + 复制提示词。</span>
+          <button id="btnGoSettings" class="link">去设定</button>
+        </div>
+
+        <div id="chatLog" class="chat-log"></div>
+
+        <div id="chatLink" class="chat-link hidden" data-type="book">
+          <span id="chatLinkLabel" class="k">正在读</span>
+          <span id="chatLinkText" class="t">《……》</span>
+          <button id="btnClearLink" class="link" type="button" title="不把这本书带进对话">×</button>
+        </div>
+
+        <div class="chips" id="chatChips">
+          <button data-say="今天写点什么好？">今天写点什么好？</button>
+          <button data-say="你最近在读什么？">你最近在读什么？</button>
+          <button data-say="我有点写不下去了。">我有点写不下去了</button>
+          <button data-say="讲一个你会讲的故事。">讲个故事</button>
+          <button data-say="晚安。">晚安</button>
+        </div>
+
+        <form id="chatForm" class="chat-input">
+          <textarea id="chatText" rows="1" placeholder="说点什么……（Enter 发送，Shift+Enter 换行）"></textarea>
+          <button type="submit" class="primary" id="btnSend">发送</button>
+        </form>
+      </section>
+
+      <!-- ============================ 创作 ============================ -->
+      <section id="view-write" class="view">
+        <header class="view-head">
+          <div>
+            <p class="eyebrow">今天也写一点</p>
+            <h2>让 Liven 写一篇</h2>
+          </div>
+          <div class="head-actions">
+            <span id="writeDate" class="date-chip"></span>
+          </div>
+        </header>
+
+        <div class="write-layout">
+          <div class="write-left">
+          <div class="write-form card">
+            <div class="field">
+              <span class="label">写什么</span>
+              <div class="seg" id="kindSeg">
+                <button data-kind="recommend" class="active">文学推荐</button>
+                <button data-kind="story">短篇</button>
+                <button data-kind="essay">随笔</button>
+                <button data-kind="letter">书信</button>
+                <button data-kind="review">读书感想</button>
+              </div>
+            </div>
+
+            <label class="field">
+              <span class="label">主题 / 书名</span>
+              <input id="wTopic" type="text" />
+            </label>
+
+            <div class="field">
+              <span class="label">语气 <em id="toneLabel">克制 ⟷ 抒情</em></span>
+              <input id="wTone" type="range" min="0" max="100" value="50" />
+            </div>
+
+            <div class="field">
+              <span class="label">从书架带入选段</span>
+              <div id="excerptChip" class="excerpt-chip empty">
+                还没有选段。去「书架」选一段，或直接写。
+              </div>
+            </div>
+
+            <label class="field">
+              <span class="label">补充要求 <em>可选</em></span>
+              <textarea id="wExtra" rows="2"></textarea>
+            </label>
+
+            <div class="form-actions">
+              <button id="btnGenerate" class="primary">让 Liven 写</button>
+              <button id="btnPromptOnly" class="ghost">只复制提示词</button>
+              <button id="btnPasteBack" class="ghost">粘贴回稿</button>
+            </div>
+            <p class="form-note">生成时若已填写 API，会直接写作；没有 API 时给你一段可复制的提示词。</p>
+          </div>
+
+          <div class="card reading-box">
+            <div class="reading-box-head">
+              <h3>最近读过</h3>
+              <span id="readingMeta" class="muted small"></span>
+            </div>
+            <div id="readingList" class="reading-list">
+              <p class="muted small">还没有记录。去书架打开一本，让她写一篇读书感想。</p>
+            </div>
+            <p class="muted small">读完会写一篇感想，收进「作品 / 读书感想」，并在里面记下日期。</p>
+          </div>
+          </div>
+
+          <div class="preview card">
+            <div id="previewEmpty" class="empty-state">
+              <div class="mark">“</div>
+              <p>右边会放她写下的稿子。</p>
+              <p class="muted">写完之后你可以改，可以删，可以只留下一句。</p>
+            </div>
+
+            <div id="previewBusy" class="busy hidden">
+              <div class="busy-head"><span class="pulse"></span><span id="busyLabel">正在写……</span></div>
+              <pre id="busyText"></pre>
+            </div>
+
+            <div id="previewResult" class="hidden">
+              <input id="rTitle" class="title-input" placeholder="标题" />
+              <div class="preview-meta">
+                <span id="rMeta"></span>
+                <span id="rWords"></span>
+              </div>
+              <textarea id="rBody" class="body-editor" spellcheck="false"></textarea>
+              <details id="afterDetails" class="after-box">
+                <summary>写在最后</summary>
+                <textarea id="rAfter" rows="4" placeholder="可以留空。"></textarea>
+              </details>
+              <div class="preview-actions">
+                <button id="btnSave" class="primary">保存到作品</button>
+                <button id="btnChatWork" class="ghost">聊聊这篇</button>
+                <button id="btnCopyWork" class="ghost">复制全文</button>
+                <button id="btnDiscard" class="ghost">丢弃</button>
+              </div>
+              <p class="form-note">保存时会自动加上「（由虚拟Liven完成）」标识，并生成 Markdown 与 Word 两个版本。</p>
+            </div>
+
+            <div id="offlinePanel" class="hidden">
+              <div class="offline-head">还没有接通语言模型</div>
+              <p class="muted">把下面这段提示词交给任意一个支持长文的 AI（DeepSeek / Kimi / ChatGPT / Claude 都行），再把它的回复粘贴回来，就能保存成 Liven 的作品。</p>
+              <textarea id="offlinePromptText" readonly rows="10"></textarea>
+              <div class="row">
+                <button id="btnCopyPrompt" class="primary">复制提示词</button>
+                <button id="btnOfflinePaste" class="ghost">我已经有回稿了</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ 书架 ============================ -->
+      <section id="view-shelf" class="view">
+        <header class="view-head">
+          <div>
+            <p class="eyebrow">自己的故事 · 公版书 · 网页</p>
+            <h2>书架</h2>
+          </div>
+          <div class="head-actions">
+            <button id="btnImportFile" class="ghost small">打开文本 / Word</button>
+            <button id="btnOpenWiki" class="ghost small">打开古文岛</button>
+          </div>
+        </header>
+
+        <div class="shelf-layout">
+          <aside class="shelf-side card">
+            <div class="source-tabs" id="sourceTabs">
+              <button data-source="local" class="active">我的故事</button>
+              <button data-source="wikisource">维基文库</button>
+              <button data-source="gutenberg">Gutenberg</button>
+              <button data-source="web">网页</button>
+            </div>
+
+            <form id="searchForm" class="search-row">
+              <input id="q" type="text" placeholder="搜标题，或留空看全部" />
+              <button class="primary small" type="submit">搜索</button>
+            </form>
+
+            <div id="searchHint" class="search-hint">三十九篇旧作都在这里。可以直接翻，也可以搜。</div>
+            <div id="searchResults" class="search-results"></div>
+
+            <div class="recent-box">
+              <h3>最近在读</h3>
+              <div id="recentList" class="recent-list"><p class="muted small">还没有。</p></div>
+            </div>
+          </aside>
+
+          <section class="reader card" id="reader">
+            <div id="readerEmpty" class="empty-state">
+              <div class="mark">❧</div>
+              <p>左边搜一本，坐一会儿。</p>
+              <p class="muted">读到的段落可以直接递给她，写成一篇推荐。</p>
+            </div>
+
+            <div id="readerMain" class="hidden">
+              <header class="reader-head">
+                <div>
+                  <h3 id="readerTitle"></h3>
+                  <p id="readerMeta" class="muted"></p>
+                </div>
+                <div class="reader-actions">
+                  <button id="btnReaderChat" class="ghost small">聊聊这本</button>
+                  <button id="btnReaderLink" class="ghost small">原页</button>
+                  <button id="btnReaderRecommend" class="ghost small">带进创作</button>
+                  <button id="btnReaderReview" class="amber small">写读书感想</button>
+                </div>
+              </header>
+              <div id="chapterBar" class="chapter-bar"></div>
+              <div id="readerBody" class="reader-body"></div>
+              <div id="readerProgress" class="reader-progress"><i></i></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ============================ 作品 ============================ -->
+      <section id="view-works" class="view">
+        <header class="view-head">
+          <div>
+            <p class="eyebrow">写在纸上的，才算数</p>
+            <h2>作品</h2>
+          </div>
+          <div class="head-actions">
+            <button id="btnRefreshWorks" class="ghost small">刷新</button>
+            <button id="btnOpenWorks" class="ghost small">打开文件夹</button>
+          </div>
+        </header>
+
+        <div class="stats" id="worksStats"></div>
+
+        <div id="serialBox" class="card serial-box hidden">
+          <div class="serial-head">
+            <h3 id="serialTitle"></h3>
+            <span id="serialMeta" class="muted small"></span>
+          </div>
+          <p id="serialTopic" class="serial-topic"></p>
+          <div id="serialChapters" class="serial-chapters"></div>
+          <div class="row">
+            <button id="btnSerialNext" class="amber small">写下一章</button>
+            <button id="btnSerialFolder" class="ghost small">打开连载文件夹</button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="seg small" id="worksFilter">
+            <button data-filter="all" class="active">全部</button>
+            <button data-filter="recommend">文学推荐</button>
+            <button data-filter="story">短篇</button>
+            <button data-filter="essay">随笔</button>
+            <button data-filter="letter">书信</button>
+            <button data-filter="review">读书感想</button>
+          </div>
+        </div>
+
+        <div id="worksList" class="works-list"></div>
+      </section>
+
+      <!-- ============================ 设定 ============================ -->
+      <section id="view-settings" class="view">
+        <header class="view-head">
+          <div>
+            <p class="eyebrow">她住在这里</p>
+            <h2>设定</h2>
+          </div>
+          <div class="head-actions">
+            <button id="btnSaveSettings" class="primary">保存设定</button>
+          </div>
+        </header>
+
+        <div class="settings-grid">
+          <section class="card setting-card">
+            <h3>语言模型</h3>
+            <p class="muted small">写作与对话都走 OpenAI 兼容接口。Key 只存在本机。</p>
+
+            <label class="field">
+              <span class="label">服务商</span>
+              <select id="sProvider"></select>
+            </label>
+
+            <label class="field">
+              <span class="label">Base URL</span>
+              <input id="sBaseURL" type="text" placeholder="https://api.deepseek.com" />
+            </label>
+
+            <div class="field two">
+              <label>
+                <span class="label">模型</span>
+                <input id="sModel" type="text" placeholder="deepseek-chat" />
+              </label>
+              <label>
+                <span class="label">温度 <em id="sTempVal">0.9</em></span>
+                <input id="sTemp" type="range" min="0" max="1.5" step="0.05" value="0.9" />
+              </label>
+            </div>
+
+            <label class="field">
+              <span class="label">API Key</span>
+              <input id="sKey" type="password" placeholder="sk-..." autocomplete="off" />
+            </label>
+
+            <div class="row">
+              <button id="btnTestLLM" class="ghost">测试连接</button>
+              <span id="llmTestResult" class="muted small"></span>
+            </div>
+            <p id="providerNote" class="muted small"></p>
+          </section>
+
+          <section class="card setting-card">
+            <h3>写作</h3>
+            <p class="muted small">作品默认放在「文档\Eternity coffee\作品」，可以在这里改。</p>
+
+            <label class="field">
+              <span class="label">作品目录</span>
+              <div class="row">
+                <input id="sOutDir" type="text" />
+                <button id="btnOpenWorksDir" class="ghost small">打开</button>
+              </div>
+            </label>
+
+            <label class="field switch-row">
+              <span class="label">同时生成 Word（.docx）</span>
+              <input id="sAutoDocx" type="checkbox" class="switch" />
+            </label>
+
+            <p class="muted small">署名行会写成「作者：Liven（由虚拟Liven完成）」。</p>
+          </section>
+
+          <section class="card setting-card">
+            <h3>定时写作</h3>
+            <p class="muted small">到点后她会在后台写一篇，存进作品文件夹，并弹一条系统通知。</p>
+
+            <label class="field switch-row">
+              <span class="label">启用</span>
+              <input id="sSchedEnabled" type="checkbox" class="switch" />
+            </label>
+
+            <div class="field two">
+              <label>
+                <span class="label">时间</span>
+                <input id="sSchedTime" type="time" value="21:30" />
+              </label>
+              <label>
+                <span class="label">写什么</span>
+                <select id="sSchedKind">
+                  <option value="mixed">轮换</option>
+                  <option value="recommend">文学推荐</option>
+                  <option value="story">短篇</option>
+                  <option value="essay">随笔</option>
+                  <option value="letter">书信</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="field">
+              <span class="label">星期</span>
+              <div id="sWeekdays" class="weekdays">
+                <button data-day="1" class="active">一</button>
+                <button data-day="2" class="active">二</button>
+                <button data-day="3" class="active">三</button>
+                <button data-day="4" class="active">四</button>
+                <button data-day="5" class="active">五</button>
+                <button data-day="6" class="active">六</button>
+                <button data-day="7" class="active">日</button>
+              </div>
+            </div>
+
+            <label class="field switch-row">
+              <span class="label">错过时补写一篇</span>
+              <input id="sCatchUp" type="checkbox" class="switch" />
+            </label>
+
+            <label class="field switch-row">
+              <span class="label">定期读一篇，写读书感想</span>
+              <input id="sReadingEnabled" type="checkbox" class="switch" />
+            </label>
+
+            <label class="field">
+              <span class="label">阅读间隔</span>
+              <select id="sReadingEvery">
+                <option value="7">每周一次</option>
+                <option value="30">每月一次</option>
+              </select>
+            </label>
+
+            <div class="row">
+              <button id="btnRunNow" class="amber small">现在写一篇</button>
+              <button id="btnReadNow" class="ghost small">现在读一篇</button>
+              <span id="schedStatus" class="muted small"></span>
+            </div>
+          </section>
+
+          <section class="card setting-card">
+            <h3>连载</h3>
+            <p class="muted small">她会自己拟一部中篇，按章节往下写；每写完一章，存进「作品 / 连载 / 标题」。</p>
+
+            <label class="field switch-row">
+              <span class="label">定期写下一章</span>
+              <input id="sSerialEnabled" type="checkbox" class="switch" />
+            </label>
+
+            <label class="field">
+              <span class="label">更新间隔</span>
+              <select id="sSerialEvery">
+                <option value="7">每周一章</option>
+                <option value="14">两周一章</option>
+                <option value="30">每月一章</option>
+              </select>
+            </label>
+
+            <div class="row">
+              <button id="btnSerialNow" class="amber small">现在写一章</button>
+              <button id="btnSerialOpen" class="ghost small">打开连载</button>
+            </div>
+            <p id="serialStatus" class="muted small"></p>
+          </section>
+
+          <section class="card setting-card">
+            <h3>桌宠</h3>
+            <p class="muted small">形象文件放在 assets/character。换成你生成的形象时，保持透明背景的竖图。</p>
+
+            <label class="field">
+              <span class="label">她怎么称呼你</span>
+              <input id="sUserName" type="text" maxlength="20" placeholder="朋友" />
+            </label>
+
+            <label class="field">
+              <span class="label">大小 <em id="sScaleVal">1.0×</em></span>
+              <input id="sScale" type="range" min="0.7" max="1.8" step="0.05" value="1" />
+            </label>
+
+            <label class="field switch-row">
+              <span class="label">总在最前</span>
+              <input id="sOnTop" type="checkbox" class="switch" />
+            </label>
+
+            <label class="field switch-row">
+              <span class="label">开机启动</span>
+              <input id="sAutoStart" type="checkbox" class="switch" />
+            </label>
+
+            <label class="field">
+              <span class="label">气泡停留</span>
+              <select id="sBubbleMs">
+                <option value="6000">6 秒</option>
+                <option value="9000">9 秒</option>
+                <option value="14000">14 秒</option>
+                <option value="20000">20 秒</option>
+              </select>
+            </label>
+
+            <div class="row">
+              <button id="btnPickCharacter" class="ghost small">换一张立绘…</button>
+              <button id="btnOpenCharacterDir" class="ghost small">打开立绘文件夹</button>
+            </div>
+          </section>
+
+          <section class="card setting-card wide">
+            <h3>隐私与数据</h3>
+            <p class="muted small">聊天、API Key、书架和阅读记录都只保存在本机的数据目录；安装包和作品文件夹里不包含这些内容。分享软件前，建议只分享安装包。</p>
+            <div class="row wrap">
+              <button id="btnSetupAgain" class="ghost small">重新运行初次设置</button>
+              <button id="btnClearChatData" class="ghost small">清空聊天记录</button>
+              <button id="btnClearKey" class="ghost small">清除 API Key</button>
+              <button id="btnClearBookData" class="ghost small">清空书架记录</button>
+              <button id="btnClearAllLocal" class="ghost small">清空全部本机数据</button>
+              <button class="ghost small" data-open-folder="data">打开数据目录</button>
+            </div>
+            <p class="muted small" id="privacyNote">「清空全部」会删除聊天、书架、阅读、连载和 API Key，但不会删除「文档」里的作品。</p>
+          </section>
+
+          <section class="card setting-card wide">
+            <h3>关于</h3>
+            <div class="about-grid">
+              <div><span class="muted small">版本</span><div id="aboutVersion"></div></div>
+              <div><span class="muted small">工作区</span><div id="aboutWorkspace" class="mono"></div></div>
+              <div><span class="muted small">语料</span><div id="aboutCorpus"></div></div>
+              <div><span class="muted small">数据目录</span><div id="aboutData" class="mono"></div></div>
+            </div>
+            <div class="row wrap">
+              <button class="ghost small" data-open-folder="docs">打开文档</button>
+              <button class="ghost small" data-open-folder="assets">打开素材</button>
+              <button id="btnOpenReadme" class="ghost small">使用说明</button>
+            </div>
+            <p class="muted small">虚拟 Liven 由你自己的作品语料与语言模型共同驱动；所有生成稿都带「由虚拟Liven完成」标识。</p>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 选段浮动条 -->
+  <div id="selBar" class="sel-bar hidden">
+    <button id="selWrite">用这段写推荐</button>
+    <button id="selCopy" class="ghost small">复制</button>
+  </div>
+
+  <!-- 粘贴回稿 -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <header>
+        <h3 id="modalTitle">粘贴回稿</h3>
+        <button id="modalClose" class="ghost small">关闭</button>
+      </header>
+      <p class="muted small" id="modalHint">把 AI 的完整回复粘进来，她会自动拆出标题、正文与「写在最后」。</p>
+      <textarea id="modalText" rows="14" placeholder="粘贴……"></textarea>
+      <div class="row end">
+        <button id="modalCancel" class="ghost">取消</button>
+        <button id="modalOk" class="primary">收下这篇</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/shared.js"></script>
+  <script src="js/studio.js"></script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>Eternity coffee · 初次见面</title>
+  <link rel="stylesheet" href="css/setup.css" />
+</head>
+<body>
+  <div class="setup">
+    <aside class="aside">
+      <div class="brand">
+        <img src="../../assets/ui/icon.png" alt="" />
+        <div>
+          <h1>Eternity coffee</h1>
+          <p>Liven · 初次见面</p>
+        </div>
+      </div>
+
+      <p class="quote">“店还开着。<br />先坐，杯子在架子上。”</p>
+
+      <ol class="steps" id="steps">
+        <li data-step="1" class="active"><span>1</span><div><b>数据与隐私</b><small>东西放在哪里</small></div></li>
+        <li data-step="2"><span>2</span><div><b>语言模型</b><small>可选，先跳过也行</small></div></li>
+        <li data-step="3"><span>3</span><div><b>开始营业</b><small>称呼、目录与启动</small></div></li>
+      </ol>
+
+      <p class="aside-foot">聊天、Key、书架都只留在本机，<br />不会被装进安装包，也不会上传。</p>
+    </aside>
+
+    <main class="main">
+      <section class="step active" data-step="1">
+        <p class="eyebrow">Before we begin</p>
+        <h2>先说明白：你的东西放在哪里</h2>
+        <p class="lead">这个小店完全跑在这台电脑上。没有账号，也没有云端同步。安装包是干净的，不会带任何人的聊天或 Key。</p>
+
+        <div class="privacy">
+          <article>
+            <span class="ico">✦</span>
+            <div><b>聊天与 API Key</b><p>保存在 <code id="pDataDir">%APPDATA%\liven-pet</code>，只属于当前 Windows 用户。</p></div>
+          </article>
+          <article>
+            <span class="ico">❧</span>
+            <div><b>她写下的作品</b><p>默认放在 <code id="pWorksDir">文档\Eternity coffee\作品</code>，你可以随时改。</p></div>
+          </article>
+          <article>
+            <span class="ico">◎</span>
+            <div><b>分享软件时</b><p>只分享安装包。不要把数据目录或整个程序目录压缩给别人。</p></div>
+          </article>
+        </div>
+
+        <label class="agree">
+          <input type="checkbox" id="agree" />
+          <span>我了解了。以后想清理，可以在「设定 → 隐私与数据」里一键清空。</span>
+        </label>
+
+        <div class="actions">
+          <span class="hint" id="hint1">勾选后继续</span>
+          <button class="primary" id="toStep2" disabled>下一步</button>
+        </div>
+      </section>
+
+      <section class="step" data-step="2">
+        <p class="eyebrow">Optional · Language model</p>
+        <h2>要不要现在接通模型？</h2>
+        <p class="lead">接通后，Liven 才能自己写新稿、读书感想和连载。没有 Key 也能用：她会用本地台词陪你，书架和作品库也照常。</p>
+
+        <div class="form">
+          <label class="field">
+            <span>服务商</span>
+            <select id="provider"></select>
+          </label>
+          <div class="two">
+            <label class="field">
+              <span>Base URL</span>
+              <input id="baseURL" type="text" spellcheck="false" />
+            </label>
+            <label class="field">
+              <span>模型</span>
+              <input id="model" type="text" spellcheck="false" />
+            </label>
+          </div>
+          <label class="field">
+            <span>API Key <small>只存在本机，不会上传</small></span>
+            <input id="apiKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off" />
+          </label>
+          <p class="note" id="providerNote"></p>
+        </div>
+
+        <div class="actions">
+          <button class="ghost" id="backTo1">上一步</button>
+          <div class="right">
+            <button class="link" id="skipKey">先不填，用本地台词</button>
+            <button class="ghost" id="testKey">测试连接</button>
+            <button class="primary" id="toStep3">下一步</button>
+          </div>
+        </div>
+        <p class="status" id="status2"></p>
+      </section>
+
+      <section class="step" data-step="3">
+        <p class="eyebrow">Almost there</p>
+        <h2>把灯打开</h2>
+        <p class="lead">先告诉她怎么称呼你，再选一个放稿子的地方。默认在「文档」里，和程序分开，更新或卸载软件都不会动它。</p>
+
+        <div class="form">
+          <label class="field">
+            <span>她想怎么称呼你</span>
+            <input id="userName" type="text" maxlength="20" placeholder="比如：小林、阿岚，或你的笔名" />
+          </label>
+          <label class="field">
+            <span>作品目录</span>
+            <div class="row">
+              <input id="outDir" type="text" spellcheck="false" />
+              <button class="ghost" id="browse">选择</button>
+            </div>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="autoStart" checked />
+            <span>开机时让她自己出来（可以在设定里关掉）</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="openStudio" checked />
+            <span>完成后打开写作间</span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button class="ghost" id="backTo2">上一步</button>
+          <button class="primary" id="finish">开始营业</button>
+        </div>
+        <p class="status" id="status3"></p>
+      </section>
+    </main>
+  </div>
+  <script src="js/setup.js"></script>
+</body>
+</html>

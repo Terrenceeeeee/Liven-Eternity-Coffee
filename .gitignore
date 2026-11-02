@@ -1,0 +1,36 @@
+# 依赖与构建产物（不要提交）
+node_modules/
+app/node_modules/
+dist/
+build/
+out/
+release/
+app/shots/
+app/tmp-*
+
+# 本机运行数据（绝不能提交）
+settings.json
+chat.json
+library.json
+reading.json
+serials.json
+*.log
+
+# 签名私钥（证书本体在 Windows 证书 store，仓库里只放公钥 .cer）
+*.pfx
+*.p12
+*.key
+*.pem
+
+# 公开仓库默认不提交的私有内容：
+# 完整语料、个人作品、内部设定文档、角色原图参考。
+# 如果要建“私有完整仓库”，删掉下面四行即可。
+knowledge/corpus/
+作品/
+docs/
+assets/character/source/
+
+# 系统文件
+Thumbs.db
+.DS_Store
+desktop.ini

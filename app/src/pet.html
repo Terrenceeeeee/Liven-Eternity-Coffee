@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Eternity coffee</title>
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/pet.css" />
+</head>
+<body>
+  <div id="stage">
+    <div id="bubble" class="bubble hidden" role="status">
+      <div id="bubbleText"></div>
+      <span class="bubble-tail"></span>
+    </div>
+
+    <div id="thinking" class="thinking hidden" aria-label="Liven 正在想">
+      <span></span><span></span><span></span>
+    </div>
+
+    <div id="glow"></div>
+
+    <div id="pet" aria-label="Liven">
+      <img id="sprite" src="../../assets/character/q/q-blink-open.png" alt="Liven" draggable="false" />
+      <div id="shadow"></div>
+    </div>
+
+    <div id="tools">
+      <button id="btnWrite" class="tool" title="让 Liven 写一篇">✦</button>
+      <button id="btnStudio" class="tool" title="打开写作间">✎</button>
+    </div>
+
+    <div id="hint" class="hidden">按住可以拖动 · 双击进店</div>
+  </div>
+  <script src="js/pet.js"></script>
+</body>
+</html>
