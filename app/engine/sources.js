@@ -223,7 +223,7 @@ function listLocalBooks(dir, query) {
       source: 'local',
       id: f,
       title: titleFromFile(f),
-      author: '董培钧',
+      author: 'Liven 的创作者',
       snippet: `${chars} 字 · ${folder}`,
       chars,
       url: ''
