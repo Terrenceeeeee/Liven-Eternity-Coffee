@@ -9,7 +9,7 @@
 一个住在 Windows 桌面上的虚拟咖啡店店主：<br>
 陪你说说话，替你读书，按你的文风写作，也把写下来的东西好好收起来。
 
-[下载安装包](https://github.com/Terrenceeeeee/Liven-Eternity-Coffee/releases) · [能做什么](#功能) · [怎么用](#日常使用) · [常见问题](#常见问题)
+[下载安装包](https://github.com/Terrenceeeeee/Liven-Eternity-Coffee/releases) · [能做什么](#功能) · [怎么用](#日常使用) · [常见问题](#常见问题) · [MIT](LICENSE)
 
 </div>
 
@@ -175,8 +175,10 @@ node node_modules\electron\install.js
 pnpm start
 ```
 
-## 版权与致谢
+## 许可证与致谢
 
-Liven 的角色、故事与立绘来自作者持续写作的系列故事。程序代码未附带开源许可证，默认保留所有权利；转载或商用前请先联系作者。
+程序代码以 [MIT License](LICENSE) 开源。
+
+Liven 的角色、故事文本、立绘与项目截图版权归作者所有，不在 MIT 授权范围内；转载、商用或二次创作前请先联系作者。
 
 感谢 Electron、docx 以及所有让这个小小咖啡店得以运行的开源项目。
