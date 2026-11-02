@@ -1,6 +1,3 @@
-<div align="center">
-
-<img src="assets/character/liven-portrait.png" width="220" alt="Liven">
 
 # Eternity coffee
 
@@ -180,5 +177,3 @@ pnpm start
 程序代码以 [MIT License](LICENSE) 开源。
 
 Liven 的角色、故事文本、立绘与项目截图版权归作者所有，不在 MIT 授权范围内；转载、商用或二次创作前请先联系作者。
-
-感谢 Electron、docx 以及所有让这个小小咖啡店得以运行的开源项目。
