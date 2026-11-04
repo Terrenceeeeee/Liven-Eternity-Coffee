@@ -528,11 +528,227 @@ async function readGushiwenBook(idOrUrl) {
   };
 }
 
+/* ----------------------------- 中国作家网 / PGA ---------------------------- */
+
+const CHINAWRITER_API = 'https://search.people.cn/search-platform/front/searchByType';
+const CHINAWRITER_BASE = 'https://www.chinawriter.com.cn';
+const PGA = 'https://gutenberg.net.au';
+
+function stripEm(value) {
+  return cleanText(String(value || '').replace(/<\/?em[^>]*>/gi, ''));
+}
+
+async function searchChinaWriter(query) {
+  const q = String(query || '').trim();
+  const keys = q ? [q] : ['小说', '散文'];
+  const results = [];
+  const seen = new Set();
+  for (const key of keys) {
+    const body = {
+      key,
+      limit: 20,
+      page: 1,
+      isFuzzy: false,
+      isHotIndex: false,
+      hasTitle: true,
+      hasContent: true,
+      type: 8,
+      originalName: '',
+      domain: 'www.chinawriter.com.cn',
+      sortType: 0,
+      searchType: 1
+    };
+    const res = await fetchWithTimeout(CHINAWRITER_API, {
+      method: 'POST',
+      headers: {
+        ...BROWSER_HEADERS,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': CHINAWRITER_BASE,
+        'Referer': CHINAWRITER_BASE + '/'
+      },
+      body: JSON.stringify(body)
+    }, 30000);
+    if (!res.ok) throw new Error(`中国作家网搜索失败（HTTP ${res.status}）`);
+    const data = await res.json();
+    const records = (data && data.data && data.data.records) || [];
+    for (const r of records) {
+      const url = absoluteUrl(r.url || r.originUrl, CHINAWRITER_BASE);
+      if (!url || !/^https?:\/\//.test(url) || seen.has(url)) continue;
+      const cat = stripEm(r.belongsName);
+      if (!/(小说|散文)/.test(cat)) continue;
+      if (/(评论|文讯|目录|访谈|理论|新闻|书汇|世界文坛|专题|综述|报道|讲座|对谈|序跋|动态)/.test(cat)) continue;
+      const title = stripEm(r.title).slice(0, 100);
+      if (!title || /目录|启事|征稿|获奖|研讨|出版|发布/.test(title)) continue;
+      const content = stripEm(r.content);
+      if (content.length < 400) continue;
+      seen.add(url);
+      results.push({
+        source: 'chinawriter',
+        id: url,
+        title,
+        author: stripEm(r.author) || '中国作家网',
+        snippet: content.slice(0, 130),
+        url
+      });
+      if (results.length >= 20) break;
+    }
+    if (results.length >= 20) break;
+  }
+  return results;
+}
+
+async function readChinaWriter(id) {
+  const url = absoluteUrl(String(id || ''), CHINAWRITER_BASE);
+  if (!url || !/(^|\.)chinawriter\.com\.cn$/i.test(new URL(url).hostname)) {
+    throw new Error('这个中国作家网链接看起来不对。');
+  }
+  const html = await fetchHtml(url);
+  const title = cleanText((/<em[^>]*id="newstit"[^>]*>([\s\S]*?)<\/em>/i.exec(html) || [])[1] || '') ||
+    cleanText((html.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || '') || '中国作家网';
+  const start = html.indexOf('<div class="end_article">');
+  let end = html.indexOf('<!--list_left end', start);
+  if (end < 0) end = html.indexOf('<!-- list_left end', start);
+  if (start < 0) throw new Error('这一页没有找到正文。');
+  if (end < 0) end = html.length;
+  let bodyHtml = html.slice(start, end);
+  bodyHtml = bodyHtml.replace(/<div[^>]*class="[^"]*daodu[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  bodyHtml = bodyHtml.replace(/<div[^>]*class="[^"]*gjc[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  let text = cleanText(bodyHtml);
+  text = text.replace(/^来源：[\s\S]{0,140}?\n/, '').trim();
+  if (text.length < 80) throw new Error('这一页没有找到可读的正文。');
+  const infoStart = html.indexOf('<div class="end_info');
+  const infoEnd = html.indexOf('<!--list_left begin', infoStart);
+  const info = infoStart >= 0 ? cleanText(html.slice(infoStart, infoEnd > 0 ? infoEnd : infoStart + 1200)) : '';
+  const am = /[|｜]\s*([^|｜\d]{1,30}?)\s+\d{4}年/.exec(info);
+  const author = am ? am[1].trim() : '中国作家网';
+  return {
+    key: `chinawriter:${url}`,
+    source: 'chinawriter',
+    id: url,
+    title,
+    author,
+    url,
+    text,
+    chapters: [],
+    truncated: false
+  };
+}
+
+let pgaCatalog = null;
+let pgaCatalogAt = 0;
+
+async function loadPgaCatalog() {
+  if (pgaCatalog && Date.now() - pgaCatalogAt < 30 * 60 * 1000) return pgaCatalog;
+  const pages = await Promise.all([
+    fetchHtml(`${PGA}/plusfifty-a-m.html`),
+    fetchHtml(`${PGA}/plusfifty-n-z.html`)
+  ]);
+  const books = [];
+  const seen = new Set();
+  for (const html of pages) {
+    for (const m of html.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)) {
+      const item = m[1];
+      const href = (/href=["']([^"']*\/ebooks\d+\/[^"']*?h\.html)["']/i.exec(item) || [])[1];
+      if (!href) continue;
+      const url = absoluteUrl(href, PGA);
+      if (!url || seen.has(url)) continue;
+      const title = cleanText(item.split('--')[0]).replace(/^[\s\-–—]+|[\s\-–—]+$/g, '').slice(0, 120);
+      if (!title || /^(HTML|Text|PDF)$/i.test(title)) continue;
+      const authorMatch = /\s-\s([^<"\n]{2,60}?)\.(?:epub|mobi|txt)/i.exec(item);
+      const author = authorMatch ? cleanText(authorMatch[1]) : 'Project Gutenberg Australia';
+      seen.add(url);
+      books.push({ id: url, title, author, url });
+      if (books.length >= 4000) break;
+    }
+  }
+  if (!books.length) throw new Error('古登堡澳大利亚目录暂时读不到，稍后再试。');
+  pgaCatalog = books;
+  pgaCatalogAt = Date.now();
+  return books;
+}
+
+async function searchPga(query) {
+  const q = String(query || '').trim().toLowerCase();
+  const books = await loadPgaCatalog();
+  const pool = q ? books.filter(b => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)) : books;
+  return pool.slice(0, 20).map(b => ({
+    source: 'pga',
+    id: b.url,
+    title: b.title,
+    author: b.author,
+    snippet: '英文公版小说 · 散文 · 随笔',
+    url: b.url
+  }));
+}
+
+async function readPga(id) {
+  const raw = String(id || '').replace(/^pga:/, '');
+  const url = absoluteUrl(raw, PGA);
+  if (!url || !/(^|\.)gutenberg\.net\.au$/i.test(new URL(url).hostname)) {
+    throw new Error('这个古登堡澳大利亚链接看起来不对。');
+  }
+  const html = await fetchHtml(url);
+  const title = cleanText((html.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || '') || 'Project Gutenberg Australia';
+  let start = html.search(/<a[^>]*(?:name|id)=["']ch1["']/i);
+  if (start < 0) start = html.search(/<h1\b/i);
+  if (start < 0) start = html.search(/<body\b/i);
+  let end = html.search(/\*\*\*\s*END/i);
+  if (end < 0) end = html.search(/End of (the )?Project Gutenberg/i);
+  if (end < 0) end = html.length;
+  let bodyHtml = html.slice(Math.max(0, start), end);
+  bodyHtml = bodyHtml.replace(/<script\b[\s\S]*?<\/script>/gi, '').replace(/<style\b[\s\S]*?<\/style>/gi, '');
+  // PG Australia 的正文是硬换行，直接抽文本会把一句话拆成很多行。
+  // 先按段落合并，再交给阅读器排版。
+  const blocks = [];
+  const blockRe = /<(h[1-4]|p)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  let bm;
+  while ((bm = blockRe.exec(bodyHtml))) {
+    const t = cleanText(bm[2]).replace(/\s+/g, ' ').trim();
+    if (t) blocks.push(t);
+  }
+  let text = blocks.length
+    ? blocks.join('\n\n')
+    : cleanText(bodyHtml).replace(/\r/g, '').replace(/([^\n])\n([^\n])/g, '$1 $2');
+  const lines = text.split('\n').map(s => s.trim()).filter(s => {
+    if (!s) return true;
+    return !/^(Project Gutenberg Australia|BROWSE|SEARCH|Home|Our FREE ebooks|Search Site|Site Map|Contact Us|HELP|Reading, Downloading.*|View our licence.*|Read our other ebooks.*|Contents)$/i.test(s);
+  });
+  text = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (text.length < 300) throw new Error('这一页没有找到可读的正文。');
+  const authorBlock = /<p[^>]*class="[^"]*author[^"]*"[^>]*>([\s\S]*?)<\/p>/i.exec(html);
+  const h2Block = /<h2[^>]*>\s*by\s+([\s\S]*?)<\/h2>/i.exec(html);
+  const author = authorBlock
+    ? cleanText(authorBlock[1]).replace(/^by\s*/i, '').trim()
+    : (h2Block ? cleanText(h2Block[1]) : 'Project Gutenberg Australia');
+  const chapters = [];
+  for (const a of anchors(html)) {
+    const href = getAttr(a.attrs, 'href');
+    if (!/^#ch\d+/i.test(href)) continue;
+    const name = cleanText(a.body);
+    if (name) chapters.push({ id: href, title: name });
+    if (chapters.length >= 60) break;
+  }
+  return {
+    key: `pga:${url}`,
+    source: 'pga',
+    id: url,
+    title,
+    author,
+    url,
+    text,
+    chapters,
+    truncated: false
+  };
+}
+
 module.exports = {
   searchWikisource, readWikisource,
   searchGutenberg, readGutenberg,
   search5000yan, read5000yan,
   searchGushiwen, readGushiwenBook,
+  searchChinaWriter, readChinaWriter,
+  searchPga, readPga,
   readUrl,
   listLocalBooks, readLocalBook, readLocalFile
 };

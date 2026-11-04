@@ -1081,27 +1081,79 @@ function initScheduler() {
     }
   });
   scheduler.start();
-  startAuxScheduler();
+  auxRetryAt = 0;
+  scheduleAux();
 }
 
 let auxTimer = null;
-let auxKick = null;
-function startAuxScheduler() {
-  if (auxTimer) clearInterval(auxTimer);
-  if (auxKick) clearTimeout(auxKick);
-  auxKick = setTimeout(auxTick, 25000);
-  auxTimer = setInterval(auxTick, 30 * 60 * 1000);
+let auxRetryAt = 0;
+const AUX_MAX_DELAY = 24 * 3600 * 1000;
+
+function nextAuxAt() {
+  const now = Date.now();
+  let at = Infinity;
+  if (settings.reading && settings.reading.enabled) {
+    if (readingDue()) at = now;
+    else {
+      const last = settings.reading.lastAt ? new Date(settings.reading.lastAt).getTime() : 0;
+      const days = Math.max(1, Number(settings.reading.everyDays) || 7);
+      at = Math.min(at, last + days * 86400000);
+    }
+  }
+  if (settings.serial && settings.serial.enabled) {
+    if (serialDue()) at = now;
+    else {
+      const a = serial.active;
+      if (a && a.nextAt) at = Math.min(at, new Date(a.nextAt).getTime());
+      else if (!a && settings.serial.autoStart) {
+        const last = settings.serial.lastAt ? new Date(settings.serial.lastAt).getTime() : 0;
+        const days = Math.max(1, Number(settings.serial.everyDays) || 14);
+        at = Math.min(at, last + days * 86400000);
+      }
+    }
+  }
+  return Math.max(at, auxRetryAt || 0);
 }
 
-async function auxTick() {
-  if (!hasKey() || writeBusy || readingBusy || serialBusy) return;
+function scheduleAux() {
+  if (auxTimer) {
+    clearTimeout(auxTimer);
+    auxTimer = null;
+  }
+  // 没有接通模型时不做任何后台检查；填好 Key 保存设置后会重新排程。
+  if (!hasKey()) return;
+  const at = nextAuxAt();
+  if (!isFinite(at)) return;
+  const now = Date.now();
+  const delay = Math.max(1000, Math.min(at - now, AUX_MAX_DELAY));
+  auxTimer = setTimeout(auxRun, delay);
+  if (auxTimer.unref) auxTimer.unref();
+}
+
+async function auxRun() {
+  auxTimer = null;
+  if (!hasKey()) return;
+  if (writeBusy || readingBusy || serialBusy) {
+    auxRetryAt = Date.now() + 10 * 60 * 1000;
+    scheduleAux();
+    return;
+  }
+  let failed = false;
   try {
-    if (readingDue()) await runScheduledReading('timer');
-    if (serialDue()) await runScheduledSerial('timer');
+    if (readingDue()) {
+      const r = await runScheduledReading('timer');
+      if (!r || r.ok === false) failed = true;
+    }
+    if (serialDue()) {
+      const r = await runScheduledSerial('timer');
+      if (!r || r.ok === false) failed = true;
+    }
   } catch (e) {
-    // 定时轮询失败不弹窗，等下一个周期再试。
+    failed = true;
     console.warn('[aux]', e.message);
   }
+  if (failed) auxRetryAt = Date.now() + 6 * 3600 * 1000;
+  scheduleAux();
 }
 
 /* ---------------------------------- IPC ---------------------------------- */
@@ -1312,7 +1364,9 @@ function friendlyNetError(err) {
     try {
       if (source === 'local') return { results: sources.listLocalBooks(CORPUS, q) };
       if (source === 'gushiwen') return { results: await sources.searchGushiwen(q) };
-      return { results: await sources.search5000yan(q) };
+      if (source === 'yan5000') return { results: await sources.search5000yan(q) };
+      if (source === 'pga') return { results: await sources.searchPga(q) };
+      return { results: await sources.searchChinaWriter(q) };
     } catch (err) {
       return { error: friendlyNetError(err) };
     }
@@ -1323,9 +1377,9 @@ function friendlyNetError(err) {
       let book;
       if (source === 'local') book = sources.readLocalBook(CORPUS, id);
       else if (source === 'file') book = sources.readLocalFile(id);
-      else if (source === 'gushiwen') book = await sources.readGushiwenBook(id);
+      else if (source === 'chinawriter') book = await sources.readChinaWriter(id);
+      else if (source === 'pga') book = await sources.readPga(id);
       else if (source === 'web') book = await sources.readUrl(id);
-      else if (source === 'yan5000') book = await sources.read5000yan(id);
       else throw new Error('这是旧版书架留下的记录，已经失效了。重新搜一本吧。');
       library.upsert(book);
       return { book };

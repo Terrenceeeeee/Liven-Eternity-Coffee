@@ -32,7 +32,7 @@
   };
 
   const INTRO = '……你来啦。\n\n店还开着。要喝点什么吗？还是，先说说话。';
-  const SOURCE_LABEL = { local: '我的故事', file: '本地文件', yan5000: '5000言', gushiwen: '古文岛', web: '网页' };
+  const SOURCE_LABEL = { local: '我的故事', file: '本地文件', chinawriter: '中国作家网', pga: '古登堡澳洲', web: '网页' };
   const PROVIDER_NOTE = {
     deepseek: '在 DeepSeek 开放平台创建一个 Key。写作建议用 deepseek-chat，便宜也够用。',
     moonshot: '在 Moonshot 开放平台创建 Key。长文写作可用 moonshot-v1-8k 或更长的版本。',
@@ -614,20 +614,20 @@
       hint.textContent = '抓取一个普通网页的正文。适合读连载、书评或作者主页。';
     } else if (source === 'local') {
       q.placeholder = '搜标题，或留空看全部';
-      hint.textContent = '这三十九篇是你已经写下的。点开来读，划一句递给她。';
-    } else if (source === 'gushiwen') {
-      q.placeholder = '搜书名，例如 论语、史记、庄子';
-      hint.textContent = '古文岛的古籍目录。选一本，她从第一章开始陪你读。';
-    } else if (source === 'yan5000') {
-      q.placeholder = '搜诗题、诗句或作者';
-      hint.textContent = '试试：静夜思、李白、明月。诗词与古文，可直接读。';
+      hint.textContent = '这四十篇是你已经写下的。点开来读，划一句递给她。';
+    } else if (source === 'chinawriter') {
+      q.placeholder = '搜作品名、作者，例如 周晓枫、散文';
+      hint.textContent = '中国作家网：当代中文小说与散文。留空看近期作品。';
+    } else if (source === 'pga') {
+      q.placeholder = '搜英文书名或作者，例如 Animal Farm、Orwell';
+      hint.textContent = 'Project Gutenberg Australia：英文公版小说与散文。第一次搜索会载入目录，约十几秒；之后本次运行内会记住。';
     } else {
       q.placeholder = '搜书名、作者或关键词';
       hint.textContent = '试试：红楼梦、鲁迅、汪曾祺、聊斋志异。';
     }
     $('#searchResults').textContent = '';
-    if (source === 'local' || source === 'gushiwen') {
-      q.value = '';
+    if (source !== 'web') q.value = '';
+    if (source === 'local' || source === 'chinawriter') {
       doSearch({ preventDefault() {} });
     }
   }
@@ -707,7 +707,7 @@
   async function doSearch(e) {
     e.preventDefault();
     const q = $('#q').value.trim();
-    if (!q && S.library.source !== 'local' && S.library.source !== 'gushiwen') return;
+    if (!q && S.library.source !== 'local' && S.library.source !== 'chinawriter') return;
 
     if (S.library.source === 'web') {
       if (!/^https?:\/\//i.test(q) && !/\./.test(q)) { toast('这看起来不像一个链接。'); return; }
@@ -863,7 +863,13 @@
       refreshWorks();
     });
 
-    $('#btnOpenWiki').addEventListener('click', () => A.openExternal('https://www.gushiwen.cn/'));
+    $('#btnOpenWiki').addEventListener('click', () => {
+      const map = {
+        chinawriter: 'https://www.chinawriter.com.cn/',
+        pga: 'https://gutenberg.net.au/'
+      };
+      A.openExternal(map[S.library.source] || 'https://www.chinawriter.com.cn/');
+    });
     $('#btnImportFile').addEventListener('click', async () => {
       const res = await A.libraryImport();
       if (!res || res.canceled) return;
