@@ -48,7 +48,11 @@
   letter-spacing: 0.05em;
   color: #f8f1e2;
   line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.brand > div { min-width: 0; overflow: hidden; }
 .brand p {
   font-size: 10.5px;
   color: rgba(246, 239, 224, 0.5);
@@ -927,6 +931,10 @@
 /* ---------------- 响应式 ---------------- */
 @media (max-width: 1120px) {
   #app { grid-template-columns: 196px minmax(0, 1fr); }
+  .brand { gap: 8px; }
+  .brand img { width: 36px; height: 36px; }
+  .brand h1 { font-size: 18px; letter-spacing: 0.02em; }
+  .brand p { font-size: 9.5px; letter-spacing: 0.08em; }
   .write-layout { grid-template-columns: 340px minmax(0, 1fr); }
   .shelf-layout { grid-template-columns: 320px minmax(0, 1fr); }
   .view { padding: 24px 24px 40px; }

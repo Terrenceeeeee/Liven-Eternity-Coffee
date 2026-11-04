@@ -50,6 +50,7 @@ let readingFile = '';
 let serial = { active: null, history: [] };
 let serialFile = '';
 let serialBusy = false;
+let readingBusy = false;
 let scheduler = null;
 let petWin = null;
 let studioWin = null;
@@ -248,9 +249,15 @@ function saveSerials() {
 function serialDue() {
   if (!settings.serial || !settings.serial.enabled) return false;
   const a = serial.active;
+  const days = Math.max(1, Number(settings.serial.everyDays) || 14);
+  if (a) {
+    // 写完一部后，按这部自己的 nextAt 开下一部；还在连载中则按下一章时间。
+    const next = a.nextAt ? new Date(a.nextAt).getTime() : 0;
+    if (next) return Date.now() >= next;
+    if (a.status === 'done') return true;
+  }
   if (!a && !settings.serial.autoStart) return false;
   const last = settings.serial.lastAt ? new Date(settings.serial.lastAt).getTime() : 0;
-  const days = Math.max(1, Number(settings.serial.everyDays) || 14);
   return Date.now() - last >= days * 86400000;
 }
 
@@ -867,6 +874,9 @@ function parsePasted(text, meta = {}) {
 /* -------------------------------- schedule -------------------------------- */
 
 async function runScheduledWriting(reason, topicArg, kindArg) {
+  // 先记下今天已经跑过，避免没 Key / 失败时 Scheduler 每 20 秒重试。
+  settings.schedule.lastRun = new Date().toISOString();
+  saveSettings();
   if (!hasKey()) {
     notify('Liven', '还没有接通语言模型。到「设定」里填一个 API Key，我就能自己写了。');
     petSay('今天还没接通模型。要不要先到设定里看看？');
@@ -880,8 +890,6 @@ async function runScheduledWriting(reason, topicArg, kindArg) {
     const result = await generateWork({ kind, topic, era: 'auto', tone: 50 });
     if (result.offline) return { ok: false, reason: 'offline' };
     const saved = await handleSaveWork({ work: result.work });
-    settings.schedule.lastRun = new Date().toISOString();
-    saveSettings();
     return { ok: true, work: result.work, saved };
   } catch (e) {
     notify('Liven', `今天没写成：${e.message}`);
@@ -909,12 +917,18 @@ function pickReadingBook() {
 }
 
 async function runScheduledReading(reason) {
+  if (readingBusy) return { ok: false, reason: 'busy' };
+  readingBusy = true;
   if (!hasKey()) {
+    readingBusy = false;
     notify('Liven', '还没有接通语言模型，读完了也写不成感想。到「设定」里填个 Key 吧。');
     return { ok: false, reason: 'no-key' };
   }
   const book = pickReadingBook();
-  if (!book) return { ok: false, reason: 'no-book' };
+  if (!book) {
+    readingBusy = false;
+    return { ok: false, reason: 'no-book' };
+  }
   notify('Liven', `开始读《${book.title}》，读完写一篇感想。`);
   petSay('我去读点东西。读完写给你看。');
   try {
@@ -936,6 +950,8 @@ async function runScheduledReading(reason) {
   } catch (e) {
     notify('Liven', `这次没读成：${e.message}`);
     return { ok: false, reason: 'error', message: e.message };
+  } finally {
+    readingBusy = false;
   }
 }
 
@@ -1060,21 +1076,32 @@ function initScheduler() {
   scheduler = new Scheduler({
     getSettings: () => settings,
     onFire: async ({ topic, kind }) => {
-      let didSomething = false;
-      if (readingDue()) {
-        await runScheduledReading('scheduled');
-        didSomething = true;
-      }
-      if (serialDue()) {
-        await runScheduledSerial('scheduled');
-        didSomething = true;
-      }
-      if (!didSomething) {
-        await runScheduledWriting('scheduled', topic, kind);
-      }
+      // 写作与阅读/连载彻底分开：到点先写今天的稿子。
+      await runScheduledWriting('scheduled', topic, kind);
     }
   });
   scheduler.start();
+  startAuxScheduler();
+}
+
+let auxTimer = null;
+let auxKick = null;
+function startAuxScheduler() {
+  if (auxTimer) clearInterval(auxTimer);
+  if (auxKick) clearTimeout(auxKick);
+  auxKick = setTimeout(auxTick, 25000);
+  auxTimer = setInterval(auxTick, 30 * 60 * 1000);
+}
+
+async function auxTick() {
+  if (!hasKey() || writeBusy || readingBusy || serialBusy) return;
+  try {
+    if (readingDue()) await runScheduledReading('timer');
+    if (serialDue()) await runScheduledSerial('timer');
+  } catch (e) {
+    // 定时轮询失败不弹窗，等下一个周期再试。
+    console.warn('[aux]', e.message);
+  }
 }
 
 /* ---------------------------------- IPC ---------------------------------- */
@@ -1284,8 +1311,8 @@ function friendlyNetError(err) {
   ipcMain.handle('library:search', async (e, { source, q }) => {
     try {
       if (source === 'local') return { results: sources.listLocalBooks(CORPUS, q) };
-      if (source === 'gutenberg') return { results: await sources.searchGutenberg(q) };
-      return { results: await sources.searchWikisource(q) };
+      if (source === 'gushiwen') return { results: await sources.searchGushiwen(q) };
+      return { results: await sources.search5000yan(q) };
     } catch (err) {
       return { error: friendlyNetError(err) };
     }
@@ -1296,9 +1323,10 @@ function friendlyNetError(err) {
       let book;
       if (source === 'local') book = sources.readLocalBook(CORPUS, id);
       else if (source === 'file') book = sources.readLocalFile(id);
-      else if (source === 'gutenberg') book = await sources.readGutenberg(id);
+      else if (source === 'gushiwen') book = await sources.readGushiwenBook(id);
       else if (source === 'web') book = await sources.readUrl(id);
-      else book = await sources.readWikisource(id);
+      else if (source === 'yan5000') book = await sources.read5000yan(id);
+      else throw new Error('这是旧版书架留下的记录，已经失效了。重新搜一本吧。');
       library.upsert(book);
       return { book };
     } catch (err) {

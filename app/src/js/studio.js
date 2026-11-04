@@ -32,7 +32,7 @@
   };
 
   const INTRO = '……你来啦。\n\n店还开着。要喝点什么吗？还是，先说说话。';
-  const SOURCE_LABEL = { local: '我的故事', file: '本地文件', wikisource: '维基文库', gutenberg: 'Gutenberg', web: '网页' };
+  const SOURCE_LABEL = { local: '我的故事', file: '本地文件', yan5000: '5000言', gushiwen: '古文岛', web: '网页' };
   const PROVIDER_NOTE = {
     deepseek: '在 DeepSeek 开放平台创建一个 Key。写作建议用 deepseek-chat，便宜也够用。',
     moonshot: '在 Moonshot 开放平台创建 Key。长文写作可用 moonshot-v1-8k 或更长的版本。',
@@ -615,15 +615,18 @@
     } else if (source === 'local') {
       q.placeholder = '搜标题，或留空看全部';
       hint.textContent = '这三十九篇是你已经写下的。点开来读，划一句递给她。';
-    } else if (source === 'gutenberg') {
-      q.placeholder = '搜书名或作者（多为英文）';
-      hint.textContent = '试试：Austen、Dickens、Moby Dick。公版书，可整本读。';
+    } else if (source === 'gushiwen') {
+      q.placeholder = '搜书名，例如 论语、史记、庄子';
+      hint.textContent = '古文岛的古籍目录。选一本，她从第一章开始陪你读。';
+    } else if (source === 'yan5000') {
+      q.placeholder = '搜诗题、诗句或作者';
+      hint.textContent = '试试：静夜思、李白、明月。诗词与古文，可直接读。';
     } else {
       q.placeholder = '搜书名、作者或关键词';
       hint.textContent = '试试：红楼梦、鲁迅、汪曾祺、聊斋志异。';
     }
     $('#searchResults').textContent = '';
-    if (source === 'local') {
+    if (source === 'local' || source === 'gushiwen') {
       q.value = '';
       doSearch({ preventDefault() {} });
     }
@@ -666,11 +669,10 @@
     $('#readerEmpty').classList.add('hidden');
     $('#readerMain').classList.remove('hidden');
     $('#readerTitle').textContent = book.title || '未命名';
-    $('#readerMeta').textContent = [
-      book.author || '',
-      SOURCE_LABEL[book.source] || '',
-      countChars(book.text) + ' 字'
-    ].filter(Boolean).join(' · ');
+    const meta = [book.author || '', SOURCE_LABEL[book.source] || '', countChars(book.text) + ' 字']
+      .filter(Boolean)
+      .filter((v, i, arr) => arr.indexOf(v) === i);
+    $('#readerMeta').textContent = meta.join(' · ');
 
     const body = $('#readerBody');
     body.textContent = book.text || '';
@@ -705,7 +707,7 @@
   async function doSearch(e) {
     e.preventDefault();
     const q = $('#q').value.trim();
-    if (!q && S.library.source !== 'local') return;
+    if (!q && S.library.source !== 'local' && S.library.source !== 'gushiwen') return;
 
     if (S.library.source === 'web') {
       if (!/^https?:\/\//i.test(q) && !/\./.test(q)) { toast('这看起来不像一个链接。'); return; }
@@ -719,11 +721,13 @@
     hint.textContent = '正在找……';
 
     let res;
+    const seq = (S.library.searchSeq = (S.library.searchSeq || 0) + 1);
     try {
       res = await A.librarySearch({ source: S.library.source, q });
     } catch (err) {
       res = { error: err.message };
     }
+    if (seq !== S.library.searchSeq) return;
     if (res && res.error) { hint.textContent = res.error; return; }
     const results = (res && res.results) || [];
     const local = S.library.source === 'local';
@@ -935,7 +939,7 @@
     });
     const next = a.nextAt ? new Date(a.nextAt) : null;
     $('#serialStatus').textContent = a.status === 'done'
-      ? '这一部写完了。下一部会在下次更新时自己开始。'
+      ? (next ? `这一部写完了。${next.getMonth() + 1} 月 ${next.getDate()} 日会自己开下一部。` : '这一部写完了。下一部会自己开始。')
       : next ? `下次更新：${next.getMonth() + 1} 月 ${next.getDate()} 日` : '';
   }
 

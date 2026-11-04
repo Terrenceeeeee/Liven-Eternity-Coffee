@@ -283,9 +283,256 @@ function readLocalFile(fullPath) {
   };
 }
 
+/* --------------------------- 5000言 / 古文岛 ---------------------------- */
+
+const YAN5000 = 'https://5000yan.com';
+const GUSHIWEN = 'https://www.gushiwen.cn';
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml',
+  'Accept-Language': 'zh-CN,zh;q=0.9'
+};
+
+async function fetchHtml(url) {
+  const res = await fetchWithTimeout(url, { headers: BROWSER_HEADERS }, 30000);
+  if (!res.ok) throw new Error(`请求失败（HTTP ${res.status}）`);
+  return res.text();
+}
+
+function cleanText(value) {
+  return htmlToText(String(value || '')).replace(/[ \t\u00a0]+/g, ' ').trim();
+}
+
+function getAttr(attrs, name) {
+  const m = new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, 'i').exec(attrs || '') ||
+    new RegExp(`\\b${name}\\s*=\\s*'([^']*)'`, 'i').exec(attrs || '');
+  return m ? m[1] : '';
+}
+
+function absoluteUrl(href, base) {
+  try { return new URL(href, base).href; } catch (e) { return ''; }
+}
+
+function anchors(html) {
+  const list = [];
+  const re = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    list.push({ attrs: m[1] || '', body: m[2] || '' });
+    if (list.length > 1600) break;
+  }
+  return list;
+}
+
+async function search5000yan(query) {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const url = `${YAN5000}/search/${encodeURIComponent(q)}/`;
+  const html = await fetchHtml(url);
+  const results = [];
+  const seen = new Set();
+
+  for (const a of anchors(html)) {
+    const href = absoluteUrl(getAttr(a.attrs, 'href'), url);
+    if (!href || !/^https?:\/\//.test(href) || seen.has(href)) continue;
+    // 结果里偶尔混进指向搜索页的“诗句”链接，点开只会回到搜索页。
+    if (href.includes('#') || /\/search\//i.test(new URL(href).pathname)) continue;
+    // 5000言站群里的字典、对联、导航页不是可读的诗词正文，过滤掉。
+    const host = new URL(href).hostname;
+    if (/(^|\.)(hanzi|duilian|daohang|zidian|chengyu|qiming|mingzi|zucizaoju)\.5000yan\.com$/i.test(host)) continue;
+    if (/(^|\.)5000yan\.com$/i.test(host) && /\/(hanzi|zidian|chengyu|qiming)\//i.test(new URL(href).pathname)) continue;
+    const cls = getAttr(a.attrs, 'class');
+    const inner = a.body;
+
+    if (/board-card/.test(cls)) {
+      const badge = cleanText((/<[^>]*class="[^"]*board-card-badge[^"]*"[^>]*>([\s\S]*?)<\/[^>]+>/i.exec(inner) || [])[1] || '');
+      if (badge && !/诗|词|古文|古籍|名句|文言/.test(badge)) continue;
+      const title = cleanText((/<[^>]*class="[^"]*board-card-name[^"]*"[^>]*>([\s\S]*?)<\/[^>]+>/i.exec(inner) || [])[1] || inner).slice(0, 80);
+      const meta = cleanText((/<[^>]*class="[^"]*board-card-meta[^"]*"[^>]*>([\s\S]*?)<\/[^>]+>/i.exec(inner) || [])[1] || '');
+      if (!title) continue;
+      seen.add(href);
+      results.push({ source: 'yan5000', id: href, title, author: '5000言', snippet: [badge, meta].filter(Boolean).join(' · ').slice(0, 120) || '诗词 · 古文', url: href });
+    } else if (/search-article-link/.test(cls)) {
+      const title = cleanText((/<[^>]*class="[^"]*search-article-title[^"]*"[^>]*>([\s\S]*?)<\/[^>]+>/i.exec(inner) || [])[1] || inner).slice(0, 80);
+      if (!title) continue;
+      seen.add(href);
+      results.push({ source: 'yan5000', id: href, title, author: '5000言', snippet: '诗词 · 古文 · 5000言', url: href });
+    }
+    if (results.length >= 20) break;
+  }
+  return results;
+}
+
+async function read5000yan(id) {
+  const url = absoluteUrl(String(id || ''), YAN5000 + '/');
+  if (!url || !/5000yan\.com$/i.test(new URL(url).hostname)) throw new Error('这个 5000言链接看起来不对。');
+  const html = await fetchHtml(url);
+  const title = cleanText((/<h1[^>]*class="[^"]*title-expand-text[^"]*"[^>]*>([\s\S]*?)<\/h1>/i.exec(html) || [])[1] || '');
+  const verseAt = html.search(/<div[^>]*class="[^"]*poem-verse/i);
+  const articleAt = html.search(/<article[^>]*class="[^"]*reading-content/i);
+  const parts = [];
+  if (verseAt >= 0) {
+    const end = articleAt > verseAt ? articleAt : Math.min(html.length, verseAt + 10000);
+    parts.push(html.slice(verseAt, end));
+  }
+  if (articleAt >= 0) {
+    const end = html.indexOf('</article>', articleAt);
+    parts.push(html.slice(articleAt, end > articleAt ? end + 10 : undefined));
+  }
+  let text = parts.map(cleanText).filter(Boolean).join('\n\n');
+  if (text.length < 40) text = cleanText(html);
+  // 页面上的“练这一首 / 朗读”按钮文字不属于正文。
+  text = text.replace(/练这一首[\s\S]*?(?=【|$)/, '').replace(/^朗读\s*/m, '').trim();
+  if (text.length < 40) throw new Error('这一页没有找到可读的正文。');
+  return {
+    key: `yan5000:${url}`,
+    source: 'yan5000',
+    id: url,
+    title: title || '5000言',
+    author: '5000言',
+    url,
+    text,
+    chapters: [],
+    truncated: false
+  };
+}
+
+let gushiwenCatalog = null;
+let gushiwenCatalogAt = 0;
+
+async function loadGushiwenCatalog() {
+  if (gushiwenCatalog && Date.now() - gushiwenCatalogAt < 30 * 60 * 1000) return gushiwenCatalog;
+  const html = await fetchHtml(`${GUSHIWEN}/guwen/`);
+  const books = [];
+  const seen = new Set();
+  for (const a of anchors(html)) {
+    const href = absoluteUrl(getAttr(a.attrs, 'href'), GUSHIWEN);
+    const m = /\/guwen\/book_([A-Za-z0-9]+)\.aspx/.exec(href);
+    if (!m || seen.has(m[1])) continue;
+    const title = cleanText(a.body).slice(0, 80);
+    if (!title) continue;
+    seen.add(m[1]);
+    books.push({ id: `book_${m[1]}`, title, url: href });
+    if (books.length >= 400) break;
+  }
+  if (!books.length) throw new Error('古文岛目录暂时读不到，稍后再试。');
+  gushiwenCatalog = books;
+  gushiwenCatalogAt = Date.now();
+  return books;
+}
+
+async function searchGushiwen(query) {
+  const q = String(query || '').trim();
+  const books = await loadGushiwenCatalog();
+  const matched = q ? books.filter(b => b.title.includes(q) || b.title.toLowerCase().includes(q.toLowerCase())) : books;
+  return matched.slice(0, 20).map(b => ({
+    source: 'gushiwen',
+    id: b.id,
+    title: b.title,
+    author: '古文岛',
+    snippet: '古籍 · 古文岛',
+    url: b.url
+  }));
+}
+
+function gushiwenChapter(html) {
+  const conAt = html.search(/<div[^>]*class="[^"]*contson/i);
+  if (conAt < 0) return null;
+  const end = html.indexOf('</div>', conAt);
+  const body = html.slice(conAt, end > conAt ? end + 6 : conAt + 12000);
+  const zAt = html.search(/<div[^>]*id="zhengwen/i);
+  let title = '';
+  if (zAt >= 0 && zAt < conAt) {
+    const head = html.slice(zAt, conAt);
+    title = cleanText((/<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(head) || [])[1] || '');
+  }
+  const text = cleanText(body);
+  if (text.length < 20) return null;
+  return { title, text };
+}
+
+async function readGushiwenBook(idOrUrl) {
+  const raw = String(idOrUrl || '');
+  let url = /^https?:/i.test(raw) ? raw : '';
+  let token = '';
+  const tm = /(bookv?_[A-Za-z0-9]+)\.aspx/.exec(raw) || /(bookv?_[A-Za-z0-9]+)/.exec(raw);
+  if (tm) token = tm[1];
+  if (!url && token) url = `${GUSHIWEN}/guwen/${token}.aspx`;
+  if (!url) throw new Error('这个古文岛链接看起来不对。');
+  if (!/gushiwen\.cn$/i.test(new URL(url).hostname)) throw new Error('这个古文岛链接看起来不对。');
+
+  if (/^bookv_/.test(token)) {
+    const html = await fetchHtml(url);
+    const chapter = gushiwenChapter(html);
+    if (!chapter) throw new Error('这一章没有找到可读的正文。');
+    return {
+      key: `gushiwen:${url}`,
+      source: 'gushiwen',
+      id: token,
+      title: chapter.title || '古文岛',
+      author: '古文岛',
+      url,
+      text: chapter.text,
+      chapters: [],
+      truncated: false
+    };
+  }
+
+  const html = await fetchHtml(url);
+  const bookTitle = cleanText((/<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html) || [])[1] || (/\/(book_[A-Za-z0-9]+)\.aspx/.exec(url) || [])[1] || '古文岛');
+  const chapters = [];
+  const seen = new Set();
+  for (const a of anchors(html)) {
+    const href = absoluteUrl(getAttr(a.attrs, 'href'), GUSHIWEN);
+    const m = /\/guwen\/(bookv_[A-Za-z0-9]+)\.aspx/.exec(href);
+    if (!m || seen.has(m[1])) continue;
+    const title = cleanText(a.body).slice(0, 80);
+    if (!title) continue;
+    seen.add(m[1]);
+    chapters.push({ id: m[1], title });
+    if (chapters.length >= 60) break;
+  }
+
+  if (!chapters.length) {
+    const text = cleanText(html);
+    if (text.length < 40) throw new Error('这一页没有找到可读的正文。');
+    return { key: `gushiwen:${url}`, source: 'gushiwen', id: token, title: bookTitle, author: '古文岛', url, text, chapters: [], truncated: false };
+  }
+
+  const take = chapters.slice(0, 8);
+  const parts = [];
+  for (const ch of take) {
+    let got = null;
+    for (let attempt = 0; attempt < 2 && !got; attempt++) {
+      try {
+        const chapterHtml = await fetchHtml(`${GUSHIWEN}/guwen/${ch.id}.aspx`);
+        const c = gushiwenChapter(chapterHtml);
+        if (c) got = { title: c.title || ch.title, text: c.text };
+      } catch (e) { /* retry once */ }
+      if (!got) await new Promise(r => setTimeout(r, 300));
+    }
+    if (got) parts.push(got);
+  }
+  const body = parts.map(c => `【${c.title}】\n${c.text}`).join('\n\n');
+  if (!body || body.length < 40) throw new Error('古文岛这本书暂时读不到正文。');
+  return {
+    key: `gushiwen:${url}`,
+    source: 'gushiwen',
+    id: token,
+    title: bookTitle,
+    author: '古文岛',
+    url,
+    text: body,
+    chapters,
+    truncated: chapters.length > take.length
+  };
+}
+
 module.exports = {
   searchWikisource, readWikisource,
   searchGutenberg, readGutenberg,
+  search5000yan, read5000yan,
+  searchGushiwen, readGushiwenBook,
   readUrl,
   listLocalBooks, readLocalBook, readLocalFile
 };
