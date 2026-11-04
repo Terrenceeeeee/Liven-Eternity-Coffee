@@ -690,12 +690,22 @@ async function readPga(id) {
   }
   const html = await fetchHtml(url);
   const title = cleanText((html.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || '') || 'Project Gutenberg Australia';
+  const hash = (() => { try { return new URL(url).hash || ''; } catch (e) { return ''; } })();
+  const chapterNo = (hash.match(/^#ch(\d+)/i) || [])[1];
   let start = html.search(/<a[^>]*(?:name|id)=["']ch1["']/i);
-  if (start < 0) start = html.search(/<h1\b/i);
-  if (start < 0) start = html.search(/<body\b/i);
   let end = html.search(/\*\*\*\s*END/i);
   if (end < 0) end = html.search(/End of (the )?Project Gutenberg/i);
   if (end < 0) end = html.length;
+  if (chapterNo) {
+    const anchor = new RegExp('<(?:a|h[1-6])\\b[^>]*(?:name|id)=["\']ch' + chapterNo + '["\']', 'i');
+    const at = html.search(anchor);
+    if (at >= 0) start = at;
+    const nextAnchor = new RegExp('<(?:a|h[1-6])\\b[^>]*(?:name|id)=["\']ch' + (Number(chapterNo) + 1) + '["\']', 'i');
+    const nextAt = html.search(nextAnchor);
+    if (nextAt > start) end = Math.min(end, nextAt);
+  }
+  if (start < 0) start = html.search(/<h1\b/i);
+  if (start < 0) start = html.search(/<body\b/i);
   let bodyHtml = html.slice(Math.max(0, start), end);
   bodyHtml = bodyHtml.replace(/<script\b[\s\S]*?<\/script>/gi, '').replace(/<style\b[\s\S]*?<\/style>/gi, '');
   // PG Australia 的正文是硬换行，直接抽文本会把一句话拆成很多行。
@@ -726,7 +736,7 @@ async function readPga(id) {
     const href = getAttr(a.attrs, 'href');
     if (!/^#ch\d+/i.test(href)) continue;
     const name = cleanText(a.body);
-    if (name) chapters.push({ id: href, title: name });
+    if (name) chapters.push({ id: absoluteUrl(href, url), title: name });
     if (chapters.length >= 60) break;
   }
   return {
