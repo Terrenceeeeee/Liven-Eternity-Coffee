@@ -1365,6 +1365,7 @@ function friendlyNetError(err) {
       if (source === 'local') return { results: sources.listLocalBooks(CORPUS, q) };
       if (source === 'gushiwen') return { results: await sources.searchGushiwen(q) };
       if (source === 'yan5000') return { results: await sources.search5000yan(q) };
+      if (source === 'gutenberg') return { results: await sources.searchGutenberg(q) };
       if (source === 'pga') return { results: await sources.searchPga(q) };
       return { results: await sources.searchChinaWriter(q) };
     } catch (err) {
@@ -1378,6 +1379,7 @@ function friendlyNetError(err) {
       if (source === 'local') book = sources.readLocalBook(CORPUS, id);
       else if (source === 'file') book = sources.readLocalFile(id);
       else if (source === 'chinawriter') book = await sources.readChinaWriter(id);
+      else if (source === 'gutenberg') book = await sources.readGutenberg(id);
       else if (source === 'pga') book = await sources.readPga(id);
       else if (source === 'web') book = await sources.readUrl(id);
       else throw new Error('这是旧版书架留下的记录，已经失效了。重新搜一本吧。');

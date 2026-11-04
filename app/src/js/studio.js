@@ -32,7 +32,7 @@
   };
 
   const INTRO = '……你来啦。\n\n店还开着。要喝点什么吗？还是，先说说话。';
-  const SOURCE_LABEL = { local: '我的故事', file: '本地文件', chinawriter: '中国作家网', pga: '古登堡澳洲', web: '网页' };
+  const SOURCE_LABEL = { local: '我的故事', file: '本地文件', chinawriter: '中国作家网', gutenberg: '古登堡计划', pga: '古登堡澳洲', web: '网页' };
   const PROVIDER_NOTE = {
     deepseek: '在 DeepSeek 开放平台创建一个 Key。写作建议用 deepseek-chat，便宜也够用。',
     moonshot: '在 Moonshot 开放平台创建 Key。长文写作可用 moonshot-v1-8k 或更长的版本。',
@@ -618,9 +618,12 @@
     } else if (source === 'chinawriter') {
       q.placeholder = '搜作品名、作者，例如 周晓枫、散文';
       hint.textContent = '中国作家网：当代中文小说与散文。留空看近期作品。';
+    } else if (source === 'gutenberg') {
+      q.placeholder = '搜书名或作者，例如 Sixpence、Maugham、Hugo';
+      hint.textContent = 'Project Gutenberg 全球站：英文公版小说、散文与诗集，数量最全。搜 Sixpence 可以找到《月亮与六便士》；正文较大时需要十几秒下载。';
     } else if (source === 'pga') {
       q.placeholder = '搜英文书名或作者，例如 Animal Farm、Orwell';
-      hint.textContent = 'Project Gutenberg Australia：英文公版小说与散文。第一次搜索会载入目录，约十几秒；之后本次运行内会记住。';
+      hint.textContent = 'Project Gutenberg Australia：目录较小，作为补充。第一次搜索会载入目录，约十几秒；之后本次运行内会记住。';
     } else {
       q.placeholder = '搜书名、作者或关键词';
       hint.textContent = '试试：红楼梦、鲁迅、汪曾祺、聊斋志异。';
@@ -866,6 +869,7 @@
     $('#btnOpenWiki').addEventListener('click', () => {
       const map = {
         chinawriter: 'https://www.chinawriter.com.cn/',
+        gutenberg: 'https://www.gutenberg.org/',
         pga: 'https://gutenberg.net.au/'
       };
       A.openExternal(map[S.library.source] || 'https://www.chinawriter.com.cn/');

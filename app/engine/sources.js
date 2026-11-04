@@ -92,68 +92,56 @@ async function readWikisource(title) {
 
 /* ------------------------------- Gutenberg ------------------------------- */
 
-function pickTextFormat(formats) {
-  if (!formats) return '';
-  const entries = Object.entries(formats);
-  const score = ([mime, url]) => {
-    if (!url || /\.zip$/i.test(url)) return -1;
-    if (/^text\/plain/i.test(mime) && /utf-8/i.test(mime)) return 100;
-    if (/^text\/plain/i.test(mime)) return 80;
-    if (/^text\/html/i.test(mime) && /utf-8/i.test(mime)) return 60;
-    if (/^text\/html/i.test(mime)) return 50;
-    return -1;
-  };
-  const best = entries
-    .map(([mime, url]) => ({ mime, url, s: score([mime, url]) }))
-    .filter(x => x.s > 0)
-    .sort((a, b) => b.s - a.s)[0];
-  return best ? best.url : '';
-}
-
 async function searchGutenberg(query) {
   const q = String(query || '').trim();
   if (!q) return [];
-  const data = await getJson(`${GUTENDEX}?search=${encodeURIComponent(q)}`);
-  const results = Array.isArray(data?.results) ? data.results : [];
-  return results.slice(0, 20).map(b => ({
-    source: 'gutenberg',
-    id: String(b.id),
-    title: normalizeTitle(b.title),
-    author: (b.authors || []).map(a => a.name).join('、') || '佚名',
-    snippet: [
-      (b.languages || []).includes('zh') ? '中文' : (b.languages || []).join('/'),
-      b.download_count ? `下载 ${b.download_count}` : ''
-    ].filter(Boolean).join(' · '),
-    url: `https://www.gutenberg.org/ebooks/${b.id}`
-  }));
+  const html = await fetchHtml(`https://www.gutenberg.org/ebooks/search/?query=${encodeURIComponent(q)}`);
+  const results = [];
+  const seen = new Set();
+  for (const chunk of html.split('<li class="booklink">').slice(1)) {
+    const id = (chunk.match(/href="\/ebooks\/(\d+)"/) || [])[1];
+    if (!id || seen.has(id)) continue;
+    const title = normalizeTitle((chunk.match(/<span class="title">([\s\S]*?)<\/span>/) || [])[1] || '');
+    if (!title) continue;
+    const author = normalizeTitle((chunk.match(/<span class="subtitle">([\s\S]*?)<\/span>/) || [])[1] || '');
+    seen.add(id);
+    results.push({
+      source: 'gutenberg',
+      id,
+      title,
+      author: author || '佚名',
+      snippet: 'Project Gutenberg 全球站',
+      url: `https://www.gutenberg.org/ebooks/${id}`
+    });
+    if (results.length >= 20) break;
+  }
+  return results;
 }
 
 async function readGutenberg(id) {
-  const meta = await getJson(`${GUTENDEX}?ids=${encodeURIComponent(id)}`);
-  const book = (meta?.results || [])[0];
-  if (!book) throw new Error('找不到这本书的元数据。');
-  const url = pickTextFormat(book.formats);
-  if (!url) throw new Error('这本书没有可直接读取的纯文本版本。');
-  const res = await fetchWithTimeout(url, {}, 45000);
+  const n = String(id || '').replace(/[^\d]/g, '');
+  if (!n) throw new Error('古登堡编号不对。');
+  const pageUrl = `https://www.gutenberg.org/ebooks/${n}`;
+  const html = await fetchHtml(pageUrl);
+  const title = cleanText((html.match(/<th>Title<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i) || [])[1] || '')
+    || normalizeTitle((html.match(/<title>([\s\S]*?)\s*\|\s*Project Gutenberg/i) || [])[1] || '')
+    || `Project Gutenberg #${n}`;
+  const author = cleanText((html.match(/<th>Author<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i) || [])[1] || '') || '佚名';
+  const textUrl = `https://www.gutenberg.org/cache/epub/${n}/pg${n}.txt`;
+  const res = await fetchWithTimeout(textUrl, { headers: BROWSER_HEADERS }, 60000);
   if (!res.ok) throw new Error(`下载正文失败（HTTP ${res.status}）。`);
-  const ctype = res.headers.get('content-type') || '';
-  let raw = await res.text();
-  let text;
-  if (/html/i.test(ctype) || /^\s*<!doctype html/i.test(raw)) {
-    text = htmlToText(raw);
-  } else {
-    text = stripGutenbergBoilerplate(raw);
-  }
+  let text = stripGutenbergBoilerplate(await res.text());
+  if (!text || text.length < 200) throw new Error('这本书没有可直接读取的纯文本版本。');
   const MAX = 600000;
   const truncated = text.length > MAX;
   if (truncated) text = text.slice(0, MAX);
   return {
-    key: `gutenberg:${id}`,
+    key: `gutenberg:${n}`,
     source: 'gutenberg',
-    id: String(id),
-    title: normalizeTitle(book.title),
-    author: (book.authors || []).map(a => a.name).join('、') || '佚名',
-    url: `https://www.gutenberg.org/ebooks/${id}`,
+    id: n,
+    title,
+    author,
+    url: pageUrl,
     text,
     chapters: [],
     truncated
